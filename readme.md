@@ -32,7 +32,7 @@
     `db_session = contextlib.contextmanager(get_db)`
 
 ## links
-[article about context managers in general](https://rednafi.github.io/digressions/python/2020/03/26/python-contextmanager.html)
-[built-in contextlib](https://docs.python.org/3/library/contextlib.html)
-[FastAPI dependencies](https://fastapi.tiangolo.com/tutorial/dependencies/dependencies-with-yield/#dependencies-with-yield)
-[the way to open/close SQLAlcemy sessions](https://docs.sqlalchemy.org/en/20/orm/session_basics.html#using-a-sessionmaker)
+* [article about context managers in general](https://rednafi.github.io/digressions/python/2020/03/26/python-contextmanager.html)
+* [built-in contextlib](https://docs.python.org/3/library/contextlib.html)
+* [FastAPI dependencies](https://fastapi.tiangolo.com/tutorial/dependencies/dependencies-with-yield/#dependencies-with-yield)
+* [the way to open/close SQLAlcemy sessions](https://docs.sqlalchemy.org/en/20/orm/session_basics.html#using-a-sessionmaker)

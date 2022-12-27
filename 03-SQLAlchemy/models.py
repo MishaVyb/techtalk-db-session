@@ -2,7 +2,7 @@
 
 from sqlalchemy import VARCHAR, Column, Integer, create_engine
 from sqlalchemy.orm import declarative_base
-from sqlalchemy_utils import create_database, database_exists, drop_database
+from sqlalchemy_utils import create_database, database_exists
 
 url = 'postgresql+psycopg2://vybornyy:vbrn7788@localhost:5432/default'
 engine = create_engine(url, pool_pre_ping=True, echo=True, echo_pool=True)

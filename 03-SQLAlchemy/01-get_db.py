@@ -5,8 +5,7 @@ from time import sleep
 
 import requests
 import uvicorn
-from fastapi import Depends, FastAPI, HTTPException
-from models import MyModel
+from fastapi import Depends, FastAPI
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
