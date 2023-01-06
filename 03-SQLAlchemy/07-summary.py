@@ -4,9 +4,10 @@ import sys
 from pathlib import Path
 from typing import Callable, Generator
 
-from models import MyModel  # type: ignore
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
+
+from models import MyModel  # type: ignore
 
 sys.path.append(str(Path(__file__).resolve().parent))
 url = 'postgresql+psycopg2://vybornyy:vbrn7788@localhost:5432/default'
@@ -15,7 +16,7 @@ engine = create_engine(url, pool_pre_ping=True, echo=True, echo_pool=True)
 SessionLocal = sessionmaker(bind=engine)
 
 
-def get_db() -> Generator[Session, None, None]:
+def get_db(echo=None) -> Generator[Session, None, None]:
     """
     Here is one single function where we describe ALL session bahaviour logic.
     Handled as context manager. Usage:
@@ -34,7 +35,6 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def db_session(using: Callable | None = None):
-
     # !!!
     Context = contextlib.contextmanager(get_db)
     if callable(using):

@@ -5,11 +5,14 @@ from time import sleep
 
 import requests
 import uvicorn
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-sys.path.append(Path(__file__).resolve().parent)
+from models import MyModel  # type: ignore
+
+sys.path.append(str(Path(__file__).resolve().parent))
+
 url = 'postgresql+psycopg2://vybornyy:vbrn7788@localhost:5432/default'
 engine = create_engine(url, pool_pre_ping=True, echo=True, echo_pool=True)
 app = FastAPI()
@@ -29,6 +32,8 @@ def get_db_v1():
     except Exception:
         db.rollback()
         raise
+    # else:
+    #     db.commit()
     finally:
         db.close()
 
@@ -65,9 +70,17 @@ def get_db_v2():
 ########################################################################################
 
 
-@app.get("/")
-def read_root(d=Depends(get_db_v2)):
-    return {'value': str(d)}
+@app.get("/error")
+def read_root(__db: Session = Depends(get_db_v1)):
+
+    with Session(engine) as db:
+        db.add(MyModel(aaa='new_object'))
+        result = db.query(MyModel).count()
+        db.commit()
+
+    # raise HTTPException(400, str(result))
+
+    return {'value': str(result)}
 
 
 if __name__ == '__main__':
@@ -76,5 +89,5 @@ if __name__ == '__main__':
 
 if __name__ == '__main__':
     sleep(1)
-    response = requests.get('http://0.0.0.0:5001')
+    response = requests.get('http://0.0.0.0:5001/error')
     print(response, response.json())

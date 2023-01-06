@@ -4,9 +4,10 @@ import sys
 from pathlib import Path
 from typing import Callable, Generator
 
-from models import MyModel  # type: ignore
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
+
+from models import MyModel  # type: ignore
 
 sys.path.append(str(Path(__file__).resolve().parent))
 url = 'postgresql+psycopg2://vybornyy:vbrn7788@localhost:5432/default'
@@ -16,20 +17,8 @@ SessionLocal = sessionmaker(bind=engine)
 
 
 def get_db() -> Generator[Session, None, None]:
-    """
-    Here is one single function where we describe ALL session bahaviour logic.
-    Handled as context manager. Usage:
-
-    >>> fastapi.Depends(get_db)
-    """
-    # <extra setup>
-    # do something if we will need it in a future
-    #
     with SessionLocal.begin() as session:
         yield session
-    #
-    # <extra teardown>
-    # do something if we will need it in a future
 
 
 # BONUS
