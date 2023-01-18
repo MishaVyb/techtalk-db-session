@@ -1,3 +1,5 @@
+# from __future__ import annotations
+
 import logging
 
 from sqlalchemy import create_engine
@@ -10,35 +12,46 @@ from session_context import db_context
 url = 'postgresql+psycopg2://vybornyy:vbrn7788@localhost:5432/default'
 url_2 = 'postgresql+psycopg2://vybornyy:vbrn7788@localhost:5432/default_2'
 
-session_context.engine = create_engine(url, pool_pre_ping=True, echo=True, echo_pool=True)
+session_context.engine = create_engine(url, pool_pre_ping=False, echo=False, echo_pool=False)
 engine = create_engine(url, pool_pre_ping=True, echo=True, echo_pool=True)
-
+# logger.setLevel('INFO')
 
 logging.basicConfig(format='%(levelname)s - %(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__file__)
-
 
 # app = FastAPI()
 
 
 # @app.get('/')
-# def read_root(
-#     db: Session = Depends(get_db),
-# ):
+# def read_root(db: Session = Depends(get_db)):
 #     return db.query(MyModel).first()
 
 
 # @db_context
-# def get_some_things_from_db(aaa: str = 'bbb'):
+# def get_some_things_from_db(aaa: bool = False, str_: str = 'hellow', *, session: Session = ...):
 #     return session.query(MyModel).limit(1).all()
+
+
+class BaseSeravice:
+    session: Session
 
 
 class MyService:
     session: Session
 
     @db_context
-    def get_some_things_from_db_as_bound_method(self, aaa: str = 'bbb'):
+    def get_some_things_from_db_as_bound_method(self, aaa: str = 'hellow', *, session: Session = ...):
         return self.session.query(MyModel).limit(1).all()
+
+    # @db_context
+    # def get_some_things_from_db_as_bound_method(
+    #     self, aaa: SomeLaterClass | None = None, str_: str = 'hellow', *, session: Session = ...
+    # ):
+    #     return self.session.query(MyModel).limit(1).all()
+
+
+class SomeLaterClass:
+    ...
 
 
 # if __name__ == '__main__':
@@ -61,6 +74,6 @@ if __name__ == '__main__':
     # result = get_some_things_from_db()
 
     service = MyService()
-    result = service.get_some_things_from_db_as_bound_method(
-        'misha',
-    )
+    result = service.get_some_things_from_db_as_bound_method('misha')
+
+    print(result)

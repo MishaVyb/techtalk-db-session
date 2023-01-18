@@ -1,11 +1,13 @@
 """
 Essential tools to operate sqlalchemy Session scope in different situation.
 
+Please, read the guide before usage: https://gitlab.datafort.ru/dev/datafort_utils/-/wikis/session-context
+
 ### FastAPI
 >>> Depends(get_db)
 
 ### Local Session Context
->>> @db_context                      # decorator usage
+>>> @db_context                       # decorator usage
 >>> with db_context() as session:     # or context manager as usual
 
 ### Flask
@@ -30,6 +32,7 @@ from __future__ import annotations
 
 import contextlib
 import functools
+import inspect
 import logging
 from typing import Callable, Generator, TypeVar, overload
 
@@ -49,8 +52,11 @@ Default engine. Bind `get_db` and `db_context` to global engine by module attrib
 
 def get_db(**session_kwargs) -> Generator[Session, None, None]:
     """
-    Generator factory to build context manager via contextlib.contextmanager or fastapi.Depends. Usage:
+    Generator factory to build context manager via `contextlib.contextmanager` or `fastapi.Depends`.
 
+    Docs: https://gitlab.datafort.ru/dev/datafort_utils/-/wikis/session-context
+
+    ### Usage.
     >>> @app.get('/')
     >>> def read_root(d=Depends(get_db))
 
@@ -72,13 +78,17 @@ _C = TypeVar('_C', bound=Callable)
 
 class _SessionScopeMaker(contextlib._GeneratorContextManager[Session]):
     """
+    This is a private api and you do not have to use it directly.
+
+    Docs: https://gitlab.datafort.ru/dev/datafort_utils/-/wikis/session-context
+
+    ### Implementation Notes:
     This accessory class inherit all functionality from `_GeneratorContextManager` and do *almost* the same things.
     Extended behavior:
     * logging at `__enter__` and `__exit__` for debugging
     * invoke `self._assign_session(...)` when `SessionScopeMaker` is used as decorator via `@db_context`
     * release expired `Session` attribute from class instance which method wrapped into `@db_context`
 
-    ### NOTE:
     Why that custom implementation for `__call__` and what is `_assign_session(..)` for?
     * `_SessionScopeMaker` is a context manager for open/close/commit/rollback sessions.
     * Also `_SessionScopeMaker` is a decorator(!). We define __call__ to implement that behavior.
@@ -135,56 +145,63 @@ class _SessionScopeMaker(contextlib._GeneratorContextManager[Session]):
         return inner
 
     @staticmethod
-    def _get_session_annotation(obj: object) -> set[str]:
+    def _get_session_annotation(obj: object) -> str:
         """
-        Find out session keyword arguments (or session class attribute) by its annotation. Return arguments names.
+        Find out session keyword arguments (or session class attribute) by its annotation. Return argument name.
+
+        Implementation notes: https://docs.python.org/3/howto/annotations.html#annotations-howto
         """
+
         annotations = getattr(obj, '__annotations__', {})
         if any(map(lambda type_hint: isinstance(type_hint, str), annotations.values())):
+            # TODO https://jira.datafort.ru/browse/DEV-2607
+            #
+            # Manually Un-Stringizing Stringized Annotations
+            # How-To: https://docs.python.org/3/howto/annotations.html#manually-un-stringizing-stringized-annotations
+            #
+            # Or use inspect.get_annotations (only for python 3.10 and above)
             raise NotImplementedError(
                 'Postponed evaluation of annotations are not supported. Discard: `from __future__ import annotations`. '
                 'Detail: https://peps.python.org/pep-0563/'
             )
 
-        return {key for key, val in annotations.items() if val == Session}
+        arg_names = {key for key, val in annotations.items() if val == Session}
+        if not arg_names:
+            raise RuntimeError(f'{obj} must define argument (attribute) with `Session` annotation. ')
+
+        # take the only one Session argument (attribute):
+        arg_name = arg_names.pop()
+        if arg_names:
+            raise RuntimeError(f'{obj} has many arguments (attributes) annotated as `Session`. Must be the only one. ')
+        return arg_name
 
     def _assign_session(self, func: _C, session: Session, args: tuple, kwargs: dict) -> None:
         """
-        Bring session to wrapped function, so it could be used inside it.
+        Bring session to wrapped function, so it could be used inside.
         """
-        session_args = self._get_session_annotation(func)
-        if session_args:
-            session_arg = session_args.pop()
-            if session_args:
-                raise RuntimeError(f'{func} has many arguments annotated as `Session`. Must be the only one. ')
-            self._assign_session_to_argument(func, session, args, kwargs, session_arg)
+        signature = inspect.signature(func, eval_str=True)
+        class_instance = signature.bind_partial(*args, **kwargs).arguments.get('self')
 
-        else:
-            # if func is not expecting for Session argument, assign it to `self`s session attribute
-            if not args:
-                raise RuntimeError(f'{func} must have `self` argument or argument with `Session` annotation. ')
-            instance = args[0]
-            self._assign_session_to_instance(instance, session)
+        if class_instance is None:  # simple function (not method) case:
+            self._assign_session_to_argument(func, session, args, kwargs)
+
+        else:  # class method case:
+            self._assign_session_to_instance(class_instance, session)
 
     def _assign_session_to_instance(self, instance: object, session: Session) -> None:
-        session_attrs = self._get_session_annotation(instance)
-        if not session_attrs:
-            raise RuntimeError(f'{instance} must define attribute with `Session` annotation. ')
-
-        session_attr = session_attrs.pop()
-        if session_attrs:
-            raise RuntimeError(f'{instance} has many attributes annotated as `Session`. Must be the only one. ')
-        if hasattr(instance, session_attr):
+        attr_name = self._get_session_annotation(instance)
+        if hasattr(instance, attr_name):
             raise RuntimeError(
                 f'{instance} already has Session. Do not call inside scoped function for another @db_context function. '
             )
 
         # memorize values to release them at self.__exit__
         self._instance = instance
-        self._instance_session_attr = session_attr
-        setattr(instance, session_attr, session)
+        self._instance_session_attr = attr_name
+        setattr(instance, attr_name, session)
 
-    def _assign_session_to_argument(self, func: _C, session: Session, args: tuple, kwargs: dict, arg_name: str) -> None:
+    def _assign_session_to_argument(self, func: _C, session: Session, args: tuple, kwargs: dict) -> None:
+        arg_name = self._get_session_annotation(func)
         defaults = func.__kwdefaults__ or {}  # check function defaults after star (*) symbol
 
         if defaults.get(arg_name) is not Ellipsis:
@@ -208,6 +225,9 @@ def db_context(func: None = None, **session_kwargs) -> _SessionScopeMaker:
 def db_context(func: _C | None = None, **session_kwargs) -> _C | _SessionScopeMaker:
     """
     Database session scope. Session will be open, committed and closed internally. And rolled back in case of exception.
+
+    Docs: https://gitlab.datafort.ru/dev/datafort_utils/-/wikis/session-context
+
     ### Usage:
     * As function decorator.
 
@@ -221,7 +241,7 @@ def db_context(func: _C | None = None, **session_kwargs) -> _C | _SessionScopeMa
     ...     session: Session
     ...
     ...     @db_context
-    ...     def get_something_from_db(limit: int = 10):
+    ...     def get_something_from_db(self, limit: int = 10):
     ...         return self.session.query(MyModel).limit(10).all()
 
     NOTE:

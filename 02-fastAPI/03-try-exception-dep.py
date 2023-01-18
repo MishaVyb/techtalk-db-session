@@ -1,4 +1,3 @@
-import contextlib
 from threading import Thread
 from time import sleep
 
@@ -16,7 +15,15 @@ app = FastAPI()
 # v1 and v2 almost the same thing, only syntaxis is different
 #
 
-contextlib.contextmanager
+
+session = Session()
+try:
+    result = session.query(MyModel).all()
+except Exception:
+    session.rollback()
+    raise
+finally:
+    session.close()
 
 
 def my_dependence_v1():

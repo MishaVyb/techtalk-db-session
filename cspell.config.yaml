@@ -20,6 +20,8 @@ words:
   - pydantic
   - pytest
   - sqlalchemy
+  - Stringized
+  - Stringizing
   - testdb
   - uvicorn
   - vbrn
